@@ -3,14 +3,14 @@ package com.example.nabu.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.example.nabu.ui.theme.AppTypography
-import com.example.nabu.ui.theme.createDarkColorScheme
-import com.example.nabu.ui.theme.createLightColorScheme
 import com.example.nabu.utils.ThemeManager
 
 @Composable
@@ -32,8 +32,31 @@ fun NabuTheme(
     val colorScheme = when {
         isDynamicColorSupported && darkTheme -> dynamicDarkColorScheme(context)
         isDynamicColorSupported && !darkTheme -> dynamicLightColorScheme(context)
-        darkTheme -> createDarkColorScheme(if (customTheme == ThemeManager.DEFAULT_LIGHT) ThemeManager.DEFAULT_DARK else customTheme) // Naive switch
-        else -> createLightColorScheme(customTheme)
+        darkTheme -> {
+            val theme = if (customTheme == ThemeManager.DEFAULT_LIGHT) ThemeManager.DEFAULT_DARK else customTheme
+            darkColorScheme(
+                primary = Color(theme.primary),
+                onPrimary = Color(theme.onPrimary),
+                primaryContainer = Color(theme.primaryContainer),
+                onPrimaryContainer = Color(theme.onPrimaryContainer),
+                secondary = Color(theme.secondary),
+                onSecondary = Color(theme.onSecondary),
+                secondaryContainer = Color(theme.secondaryContainer),
+                onSecondaryContainer = Color(theme.onSecondaryContainer),
+            )
+        }
+        else -> {
+            lightColorScheme(
+                primary = Color(customTheme.primary),
+                onPrimary = Color(customTheme.onPrimary),
+                primaryContainer = Color(customTheme.primaryContainer),
+                onPrimaryContainer = Color(customTheme.onPrimaryContainer),
+                secondary = Color(customTheme.secondary),
+                onSecondary = Color(customTheme.onSecondary),
+                secondaryContainer = Color(customTheme.secondaryContainer),
+                onSecondaryContainer = Color(customTheme.onSecondaryContainer),
+            )
+        }
     }
 
     MaterialTheme(
