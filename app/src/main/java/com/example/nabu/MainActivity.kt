@@ -1,6 +1,6 @@
 package com.example.nabu
 
-import NabuTheme
+import com.example.nabu.ui.theme.NabuTheme
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.nabu.screens.BookScreen
 import com.example.nabu.screens.CreationsScreen

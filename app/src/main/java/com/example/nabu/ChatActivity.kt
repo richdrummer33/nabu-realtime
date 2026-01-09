@@ -1,6 +1,6 @@
 package com.example.nabu
 
-import NabuTheme
+import com.example.nabu.ui.theme.NabuTheme
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
