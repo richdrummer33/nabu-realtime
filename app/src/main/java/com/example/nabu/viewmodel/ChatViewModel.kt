@@ -614,8 +614,7 @@ class ChatViewModel(
 
                             val (data, sampleRate) = if (realEngine is KokoroEngine) {
                                 DebugLogger.log("Using KokoroEngine. Phonemizing '$text'...")
-                                val phonemes = PhonemeConverter(context).phonemize(text)
-                                val styleLoader = StyleLoader(context)
+                                val phonemes = phonemeConverter.phonemize(text)
                                 val mixedVector = mixStyles(
                                     styleLoader = styleLoader,
                                     styles = _selectedStyles.value,

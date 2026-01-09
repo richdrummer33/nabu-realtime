@@ -1,7 +1,5 @@
 package com.example.nabu.utils
 
-import android.content.Context
-
 object TextChunker {
     
     /**
