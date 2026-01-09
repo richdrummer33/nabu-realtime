@@ -134,8 +134,8 @@ object TextChunker {
         // Remove links: [text](url) -> text
         result = result.replace(Regex("\\[([^\\]]+)\\]\\([^)]+\\)"), "$1")
         
-        // Remove headers: # text
-        result = result.replace(Regex("^#{1,6}\\s+"), "")
+        // Remove headers: # text (with multiline support)
+        result = result.replace(Regex("(?m)^#{1,6}\\s+"), "")
         
         // Remove remaining special characters commonly used in markdown
         result = result.replace(Regex("[>#\\[\\](){}]"), "")
@@ -150,34 +150,24 @@ object TextChunker {
         val sentences = mutableListOf<String>()
         val builder = StringBuilder()
         
-        // Split on sentence boundaries while preserving the delimiter
-        val regex = Regex("([.!?]+)\\s*")
-        val parts = text.split(regex)
+        // Use regex to find sentence boundaries
+        val regex = Regex("[.!?]+")
+        var lastIndex = 0
         
-        var i = 0
-        while (i < parts.size) {
-            val part = parts[i].trim()
-            if (part.isEmpty()) {
-                i++
-                continue
+        for (match in regex.findAll(text)) {
+            val sentenceText = text.substring(lastIndex, match.range.last + 1)
+            if (sentenceText.isNotBlank()) {
+                sentences.add(sentenceText.trim())
             }
-            
-            builder.append(part)
-            
-            // Check if there's a delimiter after this part
-            if (i + 1 < parts.size && parts[i + 1].matches(Regex("[.!?]+"))) {
-                builder.append(parts[i + 1])
-                i += 2
-                sentences.add(builder.toString().trim())
-                builder.clear()
-            } else {
-                i++
-            }
+            lastIndex = match.range.last + 1
         }
         
-        // Add any remaining content
-        if (builder.isNotEmpty()) {
-            sentences.add(builder.toString().trim())
+        // Add any remaining text
+        if (lastIndex < text.length) {
+            val remaining = text.substring(lastIndex).trim()
+            if (remaining.isNotEmpty()) {
+                sentences.add(remaining)
+            }
         }
         
         // Also split on newlines as sentence boundaries

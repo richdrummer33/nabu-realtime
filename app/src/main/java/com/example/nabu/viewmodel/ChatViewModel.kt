@@ -27,6 +27,7 @@ import com.example.nabu.utils.PhonemeConverter
 import com.example.nabu.utils.PlayerState
 import com.example.nabu.utils.SettingsManager
 import com.example.nabu.utils.StyleLoader
+import com.example.nabu.utils.TextChunker
 import com.example.nabu.utils.createAudioFromStyleVector
 import com.example.nabu.utils.mixStyles
 import kotlinx.coroutines.Dispatchers
