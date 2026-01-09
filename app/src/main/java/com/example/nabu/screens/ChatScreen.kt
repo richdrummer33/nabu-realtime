@@ -61,6 +61,8 @@ import com.mewmix.nabu.ui.brutalist.BrutalSection
 import com.mewmix.nabu.ui.brutalist.BrutalSlider
 import com.mewmix.nabu.ui.brutalist.PanelBox
 
+private const val PROGRESS_TEXT_PREVIEW_LENGTH = 80
+
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
@@ -481,7 +483,8 @@ fun ChatScreen(
                         // Current text preview
                         if (currentSentenceText.isNotBlank()) {
                             Text(
-                                text = currentSentenceText.take(80) + if (currentSentenceText.length > 80) "..." else "",
+                                text = currentSentenceText.take(PROGRESS_TEXT_PREVIEW_LENGTH) + 
+                                    if (currentSentenceText.length > PROGRESS_TEXT_PREVIEW_LENGTH) "..." else "",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Brutal.textDim,
                                 maxLines = 1,

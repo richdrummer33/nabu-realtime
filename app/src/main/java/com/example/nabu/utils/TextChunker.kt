@@ -1,6 +1,16 @@
 package com.example.nabu.utils
 
+import com.example.nabu.utils.DebugLogger
+
 object TextChunker {
+    
+    // Precompiled regex patterns for better performance
+    private val MARKDOWN_BOLD_DOUBLE = Regex("\\*\\*(.+?)\\*\\*")
+    private val MARKDOWN_ITALIC_SINGLE = Regex("\\*(.+?)\\*")
+    private val MARKDOWN_BOLD_UNDERSCORE = Regex("__(.+?)__")
+    private val MARKDOWN_ITALIC_UNDERSCORE = Regex("_(.+?)_")
+    private val SENTENCE_BOUNDARY = Regex("([.!?]+\\s+|\n+)")
+    private val WHITESPACE = Regex("\\s+")
     
     /**
      * Split text into chunks based on word count, respecting sentence boundaries
@@ -18,17 +28,16 @@ object TextChunker {
             val normalized = text
                 .replace("\r\n", "\n")
                 .replace("\r", "\n")
-                .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1") // Remove bold **text**
-                .replace(Regex("\\*(.+?)\\*"), "$1")       // Remove italic *text*
-                .replace(Regex("__(.+?)__"), "$1")         // Remove bold __text__
-                .replace(Regex("_(.+?)_"), "$1")           // Remove italic _text_
+                .replace(MARKDOWN_BOLD_DOUBLE, "$1")
+                .replace(MARKDOWN_ITALIC_SINGLE, "$1")
+                .replace(MARKDOWN_BOLD_UNDERSCORE, "$1")
+                .replace(MARKDOWN_ITALIC_UNDERSCORE, "$1")
                 .trim()
             
             if (normalized.isEmpty()) return emptyList()
             
             // Split on sentence boundaries and newlines
-            val sentenceRegex = Regex("([.!?]+\\s+|\n+)")
-            val segments = normalized.split(sentenceRegex).filter { it.isNotBlank() }
+            val segments = normalized.split(SENTENCE_BOUNDARY).filter { it.isNotBlank() }
             
             var currentChunk = StringBuilder()
             var currentWordCount = 0
@@ -88,7 +97,7 @@ object TextChunker {
     
     private fun splitLargeSegment(segment: String, maxWords: Int, minWords: Int): List<String> {
         val result = mutableListOf<String>()
-        val words = segment.split(Regex("\\s+"))
+        val words = segment.split(WHITESPACE)
         
         var currentChunk = mutableListOf<String>()
         for (word in words) {
@@ -112,6 +121,6 @@ object TextChunker {
     }
     
     private fun countWords(text: String): Int {
-        return text.split(Regex("\\s+")).filter { it.isNotBlank() }.size
+        return text.split(WHITESPACE).filter { it.isNotBlank() }.size
     }
 }

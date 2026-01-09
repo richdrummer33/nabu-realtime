@@ -616,10 +616,10 @@ class ChatViewModel(
                                 DebugLogger.log("Using KokoroEngine. Phonemizing '$text'...")
                                 val phonemes = phonemeConverter.phonemize(text)
                                 val mixedVector = mixStyles(
-                                    styleLoader = styleLoader,
-                                    styles = _selectedStyles.value,
-                                    weights = _weights.value,
-                                    mode = _interpolationMode.value
+                                    styleLoader,
+                                    _selectedStyles.value,
+                                    _weights.value,
+                                    _interpolationMode.value
                                 )
                                 val (audio, sampleRate) = createAudioFromStyleVector(
                                     phonemes = phonemes,
