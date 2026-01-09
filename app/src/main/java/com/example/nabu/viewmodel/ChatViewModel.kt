@@ -50,6 +50,7 @@ class ChatViewModel(
     companion object {
         private const val DEFAULT_MAX_CONTEXT_TOKENS = 1024
         private val TOKEN_REGEX = Regex("\\S+")
+        private const val SYNTHESIS_TIMEOUT_MS = 30000L // 30 seconds timeout per chunk
     }
 
     // Dependencies
@@ -118,7 +119,6 @@ class ChatViewModel(
     val currentSentenceText = _currentSentenceText.asStateFlow()
 
     private var isFirstChunk = true
-    private val synthesisTimeout = 30000L // 30 seconds timeout per chunk
 
     private data class QueuedAudio(val index: Int, val audio: FloatArray, val sampleRate: Int)
 
@@ -591,7 +591,7 @@ class ChatViewModel(
             
             try {
                 // Add timeout protection
-                val audioData = withTimeoutOrNull(synthesisTimeout) {
+                val audioData = withTimeoutOrNull(SYNTHESIS_TIMEOUT_MS) {
                     withContext(Dispatchers.IO) {
                         try {
                             val engine = TTSManager.getEngine(context, modelManager)

@@ -482,9 +482,10 @@ fun ChatScreen(
                         
                         // Current text preview
                         if (currentSentenceText.isNotBlank()) {
+                            val textLength = currentSentenceText.length
                             Text(
                                 text = currentSentenceText.take(PROGRESS_TEXT_PREVIEW_LENGTH) + 
-                                    if (currentSentenceText.length > PROGRESS_TEXT_PREVIEW_LENGTH) "..." else "",
+                                    if (textLength > PROGRESS_TEXT_PREVIEW_LENGTH) "..." else "",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Brutal.textDim,
                                 maxLines = 1,
