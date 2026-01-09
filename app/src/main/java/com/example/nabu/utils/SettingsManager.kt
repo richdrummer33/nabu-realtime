@@ -56,4 +56,20 @@ object SettingsManager {
 
     fun getTtsEngine(context: Context, default: String = "kokoro"): String =
         DatabaseManager.getSetting(context, "tts_engine") ?: default
+
+    fun getMaxChunkWords(context: Context): Int {
+        return DatabaseManager.getSetting(context, "max_chunk_words")?.toIntOrNull() ?: 50
+    }
+
+    fun setMaxChunkWords(context: Context, words: Int) {
+        DatabaseManager.setSetting(context, "max_chunk_words", words.toString())
+    }
+
+    fun getMinChunkWords(context: Context): Int {
+        return DatabaseManager.getSetting(context, "min_chunk_words")?.toIntOrNull() ?: 5
+    }
+
+    fun setMinChunkWords(context: Context, words: Int) {
+        DatabaseManager.setSetting(context, "min_chunk_words", words.toString())
+    }
 }
