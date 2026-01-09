@@ -563,10 +563,11 @@ class ChatViewModel(
                 _currentSentenceText.value = chunk
                 DebugLogger.log("Queueing chunk ${index + 1}/${chunks.size}: ${chunk.take(50)}...")
                 
-                val isFirst = isFirstChunk
-                if (isFirstChunk) isFirstChunk = false
+                // First chunk in this batch should play immediately if this is the first batch
+                val shouldPlayImmediately = (index == 0 && isFirstChunk)
+                if (shouldPlayImmediately) isFirstChunk = false
                 
-                synthesizeAndQueue(cleanText(chunk), playImmediately = isFirst)
+                synthesizeAndQueue(cleanText(chunk), playImmediately = shouldPlayImmediately)
             }
             
             builder.clear()
@@ -663,9 +664,10 @@ class ChatViewModel(
                         audioPlayer.prepare(data, sampleRate)
                         _playerState.value = PlayerState.PLAYING
                         audioPlayer.playBlocking()
-                        _playerState.value = PlayerState.IDLE
                     } catch (e: Exception) {
                         DebugLogger.log("Immediate playback error: ${e.message}")
+                    } finally {
+                        _playerState.value = PlayerState.IDLE
                     }
                 } else {
                     // Queue subsequent chunks

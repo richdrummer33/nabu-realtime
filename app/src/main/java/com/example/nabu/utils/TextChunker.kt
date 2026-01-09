@@ -36,8 +36,30 @@ object TextChunker {
             
             if (normalized.isEmpty()) return emptyList()
             
-            // Split on sentence boundaries and newlines
-            val segments = normalized.split(SENTENCE_BOUNDARY).filter { it.isNotBlank() }
+            // Split on sentence boundaries while preserving punctuation
+            // Use lookahead to split after punctuation/newlines but keep them with the text
+            val segments = mutableListOf<String>()
+            var lastIndex = 0
+            val matches = SENTENCE_BOUNDARY.findAll(normalized)
+            
+            for (match in matches) {
+                val endIndex = match.range.last + 1
+                val segment = normalized.substring(lastIndex, endIndex).trim()
+                if (segment.isNotBlank()) {
+                    segments.add(segment)
+                }
+                lastIndex = endIndex
+            }
+            
+            // Add remaining text if any
+            if (lastIndex < normalized.length) {
+                val remaining = normalized.substring(lastIndex).trim()
+                if (remaining.isNotBlank()) {
+                    segments.add(remaining)
+                }
+            }
+            
+            if (segments.isEmpty()) return emptyList()
             
             var currentChunk = StringBuilder()
             var currentWordCount = 0
