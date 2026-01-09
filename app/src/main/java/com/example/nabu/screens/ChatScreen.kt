@@ -1,5 +1,7 @@
 package com.example.nabu.screens
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
@@ -30,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -42,6 +47,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.kokoro.chat.MessageBubble
 import com.example.nabu.ui.components.WaveformVisualizer
@@ -68,6 +75,10 @@ fun ChatScreen(
     val activeConversationId by viewModel.activeConversationId.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val activeModel by viewModel.activeModel.collectAsState()
+
+    val currentSentence by viewModel.currentSentence.collectAsState()
+    val totalSentences by viewModel.totalSentences.collectAsState()
+    val currentSentenceText by viewModel.currentSentenceText.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshStyles()
@@ -388,6 +399,95 @@ fun ChatScreen(
                             color = Brutal.amber,
                             trackColor = Brutal.panelStroke
                         )
+                    }
+                }
+            }
+
+            // Add this BEFORE WaveformVisualizer
+            AnimatedVisibility(
+                visible = isSynthesizing || playerState == PlayerState.PLAYING,
+                enter = slideInVertically() + fadeIn(),
+                exit = slideOutVertically() + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = Brutal.panelBg.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(2.dp, Brutal.panelStroke)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Status and counter
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (playerState == PlayerState.PLAYING) 
+                                        Icons.Default.VolumeUp else Icons.Default.Sync,
+                                    contentDescription = null,
+                                    tint = Brutal.amber,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when {
+                                        playerState == PlayerState.PLAYING -> "Speaking"
+                                        isSynthesizing -> "Synthesizing"
+                                        else -> "Processing"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Brutal.textBright
+                                )
+                            }
+                            
+                            if (totalSentences > 0) {
+                                Text(
+                                    text = "$currentSentence / $totalSentences",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Brutal.textDim
+                                )
+                            }
+                        }
+                        
+                        // Progress bar
+                        if (totalSentences > 0) {
+                            LinearProgressIndicator(
+                                progress = { (currentSentence.toFloat() / totalSentences).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = Brutal.amber,
+                                trackColor = Brutal.panelStroke
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = Brutal.amber,
+                                trackColor = Brutal.panelStroke
+                            )
+                        }
+                        
+                        // Current text preview
+                        if (currentSentenceText.isNotBlank()) {
+                            Text(
+                                text = currentSentenceText.take(80) + if (currentSentenceText.length > 80) "..." else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Brutal.textDim,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

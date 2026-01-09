@@ -29,12 +29,14 @@ import com.example.nabu.utils.SettingsManager
 import com.example.nabu.utils.StyleLoader
 import com.example.nabu.utils.createAudioFromStyleVector
 import com.example.nabu.utils.mixStyles
+import com.example.nabu.utils.TextChunker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -104,6 +106,19 @@ class ChatViewModel(
 
     private val _speed = MutableStateFlow(1.0f)
     val speed = _speed.asStateFlow()
+
+    // Add these state flows for progress tracking
+    private val _currentSentence = MutableStateFlow(0)
+    val currentSentence = _currentSentence.asStateFlow()
+
+    private val _totalSentences = MutableStateFlow(0)
+    val totalSentences = _totalSentences.asStateFlow()
+
+    private val _currentSentenceText = MutableStateFlow("")
+    val currentSentenceText = _currentSentenceText.asStateFlow()
+
+    private var isFirstChunk = true
+    private val synthesisTimeout = 30000L // 30 seconds timeout per chunk
 
     private data class QueuedAudio(val index: Int, val audio: FloatArray, val sampleRate: Int)
 
@@ -520,96 +535,150 @@ class ChatViewModel(
     }
 
     private fun processSentences(builder: StringBuilder, done: Boolean) {
-        var text = builder.toString()
-        val regex = Regex("[.!?]+|\n")
-        var match = regex.find(text)
-        while (match != null) {
-            val end = match.range.last + 1
-            val sentence = text.substring(0, end).trim()
-            DebugLogger.log("Queueing sentence: $sentence")
-            synthesizeAndQueue(cleanText(sentence))
-            text = text.substring(end)
-            match = regex.find(text)
-        }
-        builder.clear()
-        builder.append(text)
-        if (done && builder.isNotEmpty()) {
-            val sentence = builder.toString().trim()
+        try {
+            val maxWords = SettingsManager.getMaxChunkWords(context)
+            val minWords = SettingsManager.getMinChunkWords(context)
+            
+            val text = builder.toString()
+            if (text.isBlank()) {
+                if (done) {
+                    dropQueuedAudio = false
+                    isFirstChunk = true
+                }
+                return
+            }
+            
+            // Use word-based chunking
+            val chunks = TextChunker.chunkByWords(text, maxWords, minWords)
+            
+            if (chunks.isEmpty()) {
+                builder.clear()
+                return
+            }
+            
+            _totalSentences.value = chunks.size
+            
+            chunks.forEachIndexed { index, chunk ->
+                _currentSentence.value = index + 1
+                _currentSentenceText.value = chunk
+                DebugLogger.log("Queueing chunk ${index + 1}/${chunks.size}: ${chunk.take(50)}...")
+                
+                val isFirst = isFirstChunk
+                if (isFirstChunk) isFirstChunk = false
+                
+                synthesizeAndQueue(cleanText(chunk), playImmediately = isFirst)
+            }
+            
             builder.clear()
-            synthesizeAndQueue(cleanText(sentence))
-        }
-        if (done) {
-            dropQueuedAudio = false
+            
+            if (done) {
+                dropQueuedAudio = false
+                isFirstChunk = true
+            }
+            
+        } catch (e: Exception) {
+            DebugLogger.log("Error in processSentences: ${e.message}")
+            builder.clear()
         }
     }
 
-    private fun synthesizeAndQueue(text: String) {
+    private fun synthesizeAndQueue(text: String, playImmediately: Boolean = false) {
         if (!_ttsEnabled.value || dropQueuedAudio) return
         val currentIndex = lineIndex++
+        
         viewModelScope.launch {
             _isSynthesizing.value = true
+            
             try {
-                val benchmark = SettingsManager.isBenchmark(context)
-                if (benchmark) {
-                    BenchmarkManager.handoff()
-                }
-                DebugLogger.log("Synthesizing: ${text}")
-                val audioData = withContext(Dispatchers.IO) {
-                    val engine = TTSManager.getEngine(context, modelManager)
-                        ?: throw IllegalStateException("No TTS engine available")
+                // Add timeout protection
+                val audioData = withTimeoutOrNull(synthesisTimeout) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val engine = TTSManager.getEngine(context, modelManager)
+                                ?: throw IllegalStateException("No TTS engine available")
 
-                    val ttsStart = SystemClock.elapsedRealtime()
+                            val ttsStart = SystemClock.elapsedRealtime()
+                            val benchmark = SettingsManager.isBenchmark(context)
+                            
+                            if (benchmark) {
+                                BenchmarkManager.handoff()
+                            }
+                            
+                            DebugLogger.log("Synthesizing: ${text.take(50)}...")
+                            
+                            val realEngine = if (engine is com.example.nabu.tts.BenchmarkingTTSEngine) {
+                                engine.delegate
+                            } else {
+                                engine
+                            }
 
-                    val realEngine = if (engine is com.example.nabu.tts.BenchmarkingTTSEngine) engine.delegate else engine
-
-                    if (realEngine is KokoroEngine) {
-                        DebugLogger.log("ChatViewModel: Using KokoroEngine. Phonemizing '$text'...")
-                    } else {
-                        DebugLogger.log("ChatViewModel: Using ${realEngine.name}. Synthesizing '$text'...")
-                    }
-
-                    val (data, sampleRate) = if (realEngine is KokoroEngine) {
-                        val mixedVector = mixStyles(
-                            styleLoader,
-                            _selectedStyles.value,
-                            _weights.value,
-                            _interpolationMode.value
-                        )
-                        val phonemes = phonemeConverter.phonemize(text)
-                        DebugLogger.log("ChatViewModel: Phonemes generated: $phonemes")
-
-                        createAudioFromStyleVector(
-                            phonemes = phonemes,
-                            voice = mixedVector,
-                            speed = _speed.value,
-                            engine = realEngine
-                        )
-                    } else {
-                        // For Supertonic or other engines, use the interface directly
-                        // Note: Supertonic does its own text normalization/phonemization internally or via TextProcessor
-                        if (realEngine is DebugSupertonicEngine) {
-                            val styleName = _selectedStyles.value.firstOrNull() ?: "F1"
-                            DebugLogger.log("ChatViewModel: Setting Supertonic style to '$styleName'")
-                            realEngine.setStyle(styleName)
+                            val (data, sampleRate) = if (realEngine is KokoroEngine) {
+                                DebugLogger.log("Using KokoroEngine. Phonemizing '$text'...")
+                                val phonemes = PhonemeConverter(context).phonemize(text)
+                                val styleLoader = StyleLoader(context)
+                                val mixedVector = mixStyles(
+                                    styleLoader = styleLoader,
+                                    styles = _selectedStyles.value,
+                                    weights = _weights.value,
+                                    mode = _interpolationMode.value
+                                )
+                                val (audio, sampleRate) = createAudioFromStyleVector(
+                                    phonemes = phonemes,
+                                    voice = mixedVector,
+                                    speed = _speed.value,
+                                    engine = realEngine
+                                )
+                                audio to sampleRate
+                            } else {
+                                DebugLogger.log("Using ${realEngine.name}. Synthesizing '$text'...")
+                                val result = engine.synthesize(text, _speed.value)
+                                result.wav to result.sampleRate
+                            }
+                            
+                            val genMs = SystemClock.elapsedRealtime() - ttsStart
+                            if (benchmark) {
+                                val audioMs = data.size * 1000L / sampleRate
+                                BenchmarkManager.recordTts(OnnxRuntimeManager.currentBundle(), genMs, audioMs)
+                                BenchmarkManager.profileSystem(context)
+                            }
+                            
+                            data to sampleRate
+                        } catch (e: Exception) {
+                            DebugLogger.log("TTS synthesis error: ${e.message}")
+                            throw e
                         }
-                        val result = engine.synthesize(text, _speed.value)
-                        result.wav to result.sampleRate
                     }
-
-                    val genMs = SystemClock.elapsedRealtime() - ttsStart
-                    if (benchmark) {
-                        val audioMs = data.size * 1000L / sampleRate
-                        // Note: Benchmark might need adjustment for Supertonic details
-                        BenchmarkManager.recordTts(OnnxRuntimeManager.currentBundle(), genMs, audioMs)
-                        BenchmarkManager.profileSystem(context)
+                }
+                
+                if (audioData == null) {
+                    DebugLogger.log("Synthesis timeout for chunk: ${text.take(50)}")
+                    return@launch
+                }
+                
+                val (data, sampleRate) = audioData
+                
+                // IMMEDIATE PLAYBACK FOR FIRST CHUNK
+                if (playImmediately) {
+                    DebugLogger.log("Playing first chunk immediately")
+                    try {
+                        audioPlayer.prepare(data, sampleRate)
+                        _playerState.value = PlayerState.PLAYING
+                        audioPlayer.playBlocking()
+                        _playerState.value = PlayerState.IDLE
+                    } catch (e: Exception) {
+                        DebugLogger.log("Immediate playback error: ${e.message}")
                     }
-                    QueuedAudio(currentIndex, data, sampleRate)
+                } else {
+                    // Queue subsequent chunks
+                    val queuedAudio = QueuedAudio(currentIndex, data, sampleRate)
+                    if (!dropQueuedAudio) {
+                        audioQueue.send(queuedAudio)
+                    }
                 }
-                if (!dropQueuedAudio) {
-                    audioQueue.send(audioData)
-                }
+                
             } catch (e: Exception) {
-                DebugLogger.log("Error synthesizing sentence: ${e.localizedMessage}")
+                DebugLogger.log("Error synthesizing sentence: ${e.message}")
+                e.printStackTrace()
             } finally {
                 _isSynthesizing.value = false
             }

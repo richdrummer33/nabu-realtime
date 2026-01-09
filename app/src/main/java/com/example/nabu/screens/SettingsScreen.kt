@@ -2,8 +2,11 @@ package com.example.nabu.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -15,10 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,7 @@ import kotlinx.coroutines.withContext
 import com.mewmix.nabu.ui.brutalist.PanelBox
 import com.mewmix.nabu.ui.brutalist.SwitchToggle
 import com.mewmix.nabu.ui.brutalist.BrutalButton
+import com.mewmix.nabu.ui.brutalist.BrutalSlider
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.nabu.utils.UpdateChecker
@@ -187,6 +193,77 @@ fun SettingsScreen() {
                     }
                 }
             }
+
+            // Add chunking settings
+            HorizontalDivider()
+
+            Text(
+                text = "TEXT CHUNKING",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+            )
+
+            var maxWords by remember { mutableIntStateOf(SettingsManager.getMaxChunkWords(context)) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Max Words Per Chunk",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = maxWords.toString(),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            BrutalSlider(
+                value = maxWords.toFloat(),
+                onValueChange = {
+                    maxWords = it.toInt()
+                    SettingsManager.setMaxChunkWords(context, maxWords)
+                },
+                range = 10f..100f,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            var minWords by remember { mutableIntStateOf(SettingsManager.getMinChunkWords(context)) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Min Words Per Chunk",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = minWords.toString(),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            BrutalSlider(
+                value = minWords.toFloat(),
+                onValueChange = {
+                    minWords = it.toInt()
+                    SettingsManager.setMinChunkWords(context, minWords)
+                },
+                range = 1f..20f,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                text = "Smaller chunks = faster first playback but more processing. Larger chunks = smoother but delayed start.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            HorizontalDivider()
 
             val commitHash = BuildConfig.GIT_COMMIT_HASH
             val versionText = "v$versionName ($commitHash)"
