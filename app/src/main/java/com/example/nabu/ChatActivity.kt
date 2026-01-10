@@ -1,6 +1,6 @@
 package com.example.nabu
 
-import NabuTheme
+import com.example.nabu.ui.theme.NabuTheme
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -107,5 +107,18 @@ class ChatActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        DebugLogger.log("ChatActivity: onPause - pausing audio playback")
+        // Don't stop synthesis, just pause audio playback
+        // The ViewModel will handle this through its lifecycle
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        DebugLogger.log("ChatActivity: onResume - resuming")
+        // Audio queue will continue processing automatically
     }
 }
