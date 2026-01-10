@@ -66,6 +66,18 @@ The project is configured for a standard Android Studio build.
 3.  Let Gradle sync the project dependencies.
 4.  Build and run the `app` module on an Android device or emulator.
 
+### CI/CD
+
+This project uses GitHub Actions for continuous integration. The workflow includes comprehensive caching to speed up builds:
+
+*   **Gradle Wrapper Cache:** Caches the Gradle wrapper to avoid re-downloading
+*   **Gradle Dependencies Cache:** Caches all Gradle dependencies and libraries
+*   **Gradle Build Cache:** Caches compiled outputs for incremental builds
+*   **Android SDK Cache:** Caches Android SDK components
+*   **Kotlin Compiler Cache:** Caches Kotlin/Native compiler artifacts
+
+These optimizations significantly reduce build times on subsequent runs.
+
 ## Prebuilt APK files
 
 Pre-compiled `.apk` files are available in the [Releases](https://github.com/mewmix/nabu/releases/) section of this repository.
