@@ -254,6 +254,7 @@ class ChatViewModel(
         }
 
         dropQueuedAudio = false
+        isFirstChunk = true  // Reset for each new message to enable immediate playback
         DebugLogger.log("ChatViewModel sendMessage: $trimmed")
         _chatMessages.value += ChatMessage(trimmed, true)
         conversationHistory.add(ConversationTurn(ConversationRole.USER, trimmed))
