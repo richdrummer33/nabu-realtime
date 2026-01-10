@@ -14,11 +14,14 @@ import com.example.kokoro.galleryport.PerfHud
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,7 +56,9 @@ import com.mewmix.nabu.ui.brutalist.BrutalSlider
 import com.mewmix.nabu.ui.brutalist.PanelRow
 import com.mewmix.nabu.ui.brutalist.Brutal
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -72,6 +77,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.nabu.data.UserPreferencesRepository
+import com.example.nabu.speech.SpeechController
+import com.example.nabu.speech.SpeechForegroundService
+import com.example.nabu.speech.SpeechRequest
+import com.example.nabu.speech.SpeechState
 import com.example.nabu.utils.PhonemeConverter
 import com.example.nabu.utils.StyleLoader
 import com.example.nabu.utils.createAudio
@@ -89,6 +98,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -155,6 +165,25 @@ class MainActivity : ComponentActivity() {
     private lateinit var phonemeConverter: PhonemeConverter
     private val scope = MainScope()
     private lateinit var userPreferencesRepository: UserPreferencesRepository
+    
+    private var speechService: SpeechForegroundService? = null
+    private var isBound = false
+    
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            DebugLogger.log("MainActivity: Service connected")
+            val binder = service as SpeechForegroundService.LocalBinder
+            speechService = binder.getService()
+            isBound = true
+        }
+        
+        override fun onServiceDisconnected(name: ComponentName?) {
+            DebugLogger.log("MainActivity: Service disconnected")
+            speechService = null
+            isBound = false
+        }
+    }
+    
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -171,6 +200,11 @@ class MainActivity : ComponentActivity() {
         userPreferencesRepository = UserPreferencesRepository(this)
 
         val startScreen = screenFromString(intent.getStringExtra(EXTRA_START_SCREEN))
+        
+        // Bind to the speech service
+        val serviceIntent = Intent(this, SpeechForegroundService::class.java)
+        startService(serviceIntent)
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         setContent {
             NabuTheme {
@@ -193,6 +227,7 @@ class MainActivity : ComponentActivity() {
                             onComplete
                         )
                     },
+                    speechController = speechService,
                     userPreferencesRepository = userPreferencesRepository,
                     initialScreen = startScreen
                 )
@@ -208,6 +243,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
         scope.cancel()
     }
 
@@ -364,6 +403,7 @@ private fun Screen.asFeature(): Screen? = when (this) {
 fun MainScreen(
     phonemeConverter: PhonemeConverter,
     onGenerateAudio: (String, String, Float, Boolean, () -> Unit) -> Unit,
+    speechController: SpeechController?,
     userPreferencesRepository: UserPreferencesRepository,
     initialScreen: Screen = Screen.Basic
 ) {
@@ -402,42 +442,64 @@ fun MainScreen(
         }
     }
     val context = LocalContext.current
+    
+    // Collect speech state for global status
+    val speechState by (speechController?.state ?: remember { MutableStateFlow<SpeechState>(SpeechState.Idle) }).collectAsState()
+    
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                BrutalButton(
-                    onClick = { navigateTo(Screen.Basic) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentFeature != Screen.Basic
-                ) { Text("BASIC") }
-                BrutalButton(
-                    onClick = { navigateTo(Screen.Mixer) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentFeature != Screen.Mixer
-                ) { Text("MIXER") }
-                BrutalButton(
-                    onClick = { navigateTo(Screen.Book) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentFeature != Screen.Book
-                ) { Text("BOOK") }
-                BrutalButton(
-                    onClick = {
-                        context.startActivity(Intent(context, ChatActivity::class.java))
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("CHAT") }
-                BrutalButton(
-                    onClick = { navigateTo(Screen.More) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentFeature != Screen.More
-                ) { Text("MORE") }
+            Column {
+                // Global status line
+                if (speechState !is SpeechState.Idle) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "⏵ ${speechState.toStatusString()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    BrutalButton(
+                        onClick = { navigateTo(Screen.Basic) },
+                        modifier = Modifier.weight(1f),
+                        enabled = currentFeature != Screen.Basic
+                    ) { Text("BASIC") }
+                    BrutalButton(
+                        onClick = { navigateTo(Screen.Mixer) },
+                        modifier = Modifier.weight(1f),
+                        enabled = currentFeature != Screen.Mixer
+                    ) { Text("MIXER") }
+                    BrutalButton(
+                        onClick = { navigateTo(Screen.Book) },
+                        modifier = Modifier.weight(1f),
+                        enabled = currentFeature != Screen.Book
+                    ) { Text("BOOK") }
+                    BrutalButton(
+                        onClick = {
+                            context.startActivity(Intent(context, ChatActivity::class.java))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("CHAT") }
+                    BrutalButton(
+                        onClick = { navigateTo(Screen.More) },
+                        modifier = Modifier.weight(1f),
+                        enabled = currentFeature != Screen.More
+                    ) { Text("MORE") }
+                }
             }
         }
     ) { innerPadding ->
@@ -466,7 +528,10 @@ fun MainScreen(
                 }
         ) {
             when (currentScreen) {
-                Screen.Basic -> BasicScreen(onGenerateAudio = onGenerateAudio)
+                Screen.Basic -> BasicScreen(
+                    onGenerateAudio = onGenerateAudio,
+                    speechController = speechController
+                )
                 Screen.Mixer -> MixerScreen(
                     phonemeConverter = phonemeConverter,
                     styleLoader = StyleLoader(context)
@@ -503,21 +568,21 @@ fun MainScreen(
 @Composable
 fun BasicScreen(
     onGenerateAudio: (String, String, Float, Boolean, () -> Unit) -> Unit,
+    speechController: SpeechController? = null
 ) {
     val context = LocalContext.current
     val styleLoader = remember { StyleLoader(context) }
     val names = styleLoader.names.sorted()
 
-    var text by remember { mutableStateOf("Made with love and brought to you from outer space.") }
-    var style by remember {
+    var text by rememberSaveable { mutableStateOf("Made with love and brought to you from outer space.") }
+    var style by rememberSaveable {
         mutableStateOf(
             SettingsManager.getStyle(context).takeIf { it in names }
                 ?: names.firstOrNull().orEmpty()
         )
     }
-    var speed by remember { mutableFloatStateOf(SettingsManager.getSpeed(context)) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var shouldSaveFile by remember { mutableStateOf(false) }
+    var speed by rememberSaveable { mutableFloatStateOf(SettingsManager.getSpeed(context)) }
+    var shouldSaveFile by rememberSaveable { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var initTrigger by remember { mutableStateOf(0) }
     var modelState by remember { mutableStateOf<ModelState>(ModelState.Loading) }
@@ -529,6 +594,10 @@ fun BasicScreen(
             )
         )
     }
+    
+    // Observe speech state from the service
+    val speechState by (speechController?.state ?: remember { MutableStateFlow<SpeechState>(SpeechState.Idle) }).collectAsState()
+    val isProcessing = speechState !is SpeechState.Idle && speechState !is SpeechState.Error
 
     LaunchedEffect(initTrigger) {
         modelState = ModelState.Loading
@@ -655,38 +724,86 @@ fun BasicScreen(
             ) {
                 val playEnabled = !isProcessing && style.isNotEmpty() && modelState is ModelState.Ready
 
-                BrutalButton(
-                    onClick = {
-                        shouldSaveFile = false
-                        isProcessing = true
-                        onGenerateAudio(text, style, speed, shouldSaveFile) {
-                            isProcessing = false
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    enabled = playEnabled
-                ) {
-                    Text(if (isProcessing) "PROCESSING..." else "PLAY")
-                }
+                // Use service if available, otherwise fall back to old method
+                if (speechController != null) {
+                    BrutalButton(
+                        onClick = {
+                            shouldSaveFile = false
+                            speechController.speak(
+                                SpeechRequest(
+                                    text = text,
+                                    style = style,
+                                    speed = speed,
+                                    shouldSave = shouldSaveFile
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        enabled = playEnabled
+                    ) {
+                        Text(if (isProcessing) "PROCESSING..." else "PLAY")
+                    }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                BrutalButton(
-                    onClick = {
-                        shouldSaveFile = true
-                        isProcessing = true
-                        onGenerateAudio(text, style, speed, shouldSaveFile) {
-                            isProcessing = false
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    enabled = playEnabled
-                ) {
-                    Text(if (isProcessing) "PROCESSING..." else "PLAY & SAVE")
+                    BrutalButton(
+                        onClick = {
+                            shouldSaveFile = true
+                            speechController.speak(
+                                SpeechRequest(
+                                    text = text,
+                                    style = style,
+                                    speed = speed,
+                                    shouldSave = shouldSaveFile
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        enabled = playEnabled
+                    ) {
+                        Text(if (isProcessing) "PROCESSING..." else "PLAY & SAVE")
+                    }
+                } else {
+                    // Fallback to old method
+                    var localProcessing by remember { mutableStateOf(false) }
+                    
+                    BrutalButton(
+                        onClick = {
+                            shouldSaveFile = false
+                            localProcessing = true
+                            onGenerateAudio(text, style, speed, shouldSaveFile) {
+                                localProcessing = false
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        enabled = !localProcessing && style.isNotEmpty() && modelState is ModelState.Ready
+                    ) {
+                        Text(if (localProcessing) "PROCESSING..." else "PLAY")
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    BrutalButton(
+                        onClick = {
+                            shouldSaveFile = true
+                            localProcessing = true
+                            onGenerateAudio(text, style, speed, shouldSaveFile) {
+                                localProcessing = false
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        enabled = !localProcessing && style.isNotEmpty() && modelState is ModelState.Ready
+                    ) {
+                        Text(if (localProcessing) "PROCESSING..." else "PLAY & SAVE")
+                    }
                 }
             }
         }
