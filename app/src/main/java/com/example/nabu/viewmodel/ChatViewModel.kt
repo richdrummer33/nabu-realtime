@@ -127,6 +127,7 @@ class ChatViewModel(
     private var nextPlaybackIndex = 0
     private var dropQueuedAudio = false
     private var lineIndex = 0
+    private var activeSynthesisCount = 0 // Track concurrent synthesis tasks
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -186,12 +187,27 @@ class ChatViewModel(
     }
 
     fun stopPlayback() {
+        DebugLogger.log("Stopping playback and clearing queues")
         dropQueuedAudio = true
         pendingAudio.clear()
         drainAudioQueue()
         audioPlayer.stop()
         _playerState.value = PlayerState.IDLE
-        _isSynthesizing.value = false
+        synchronized(this) {
+            activeSynthesisCount = 0
+            _isSynthesizing.value = false
+        }
+    }
+    
+    fun pausePlayback() {
+        DebugLogger.log("Pausing playback (lifecycle)")
+        audioPlayer.stop()
+        _playerState.value = PlayerState.IDLE
+    }
+    
+    fun resumePlayback() {
+        DebugLogger.log("Resuming playback (lifecycle)")
+        // Audio queue will continue processing automatically
     }
 
     fun selectConversation(conversationId: Long) {
@@ -559,16 +575,25 @@ class ChatViewModel(
             
             _totalSentences.value = chunks.size
             
+            // CRITICAL FIX: Process first chunk immediately, queue rest asynchronously
             chunks.forEachIndexed { index, chunk ->
                 _currentSentence.value = index + 1
                 _currentSentenceText.value = chunk
-                DebugLogger.log("Queueing chunk ${index + 1}/${chunks.size}: ${chunk.take(50)}...")
                 
                 // First chunk in this batch should play immediately if this is the first batch
                 val shouldPlayImmediately = (index == 0 && isFirstChunk)
-                if (shouldPlayImmediately) isFirstChunk = false
-                
-                synthesizeAndQueue(cleanText(chunk), playImmediately = shouldPlayImmediately)
+                if (shouldPlayImmediately) {
+                    isFirstChunk = false
+                    DebugLogger.log("Processing first chunk immediately: ${chunk.take(50)}...")
+                    // Synthesize first chunk right away for immediate playback
+                    synthesizeAndQueue(cleanText(chunk), playImmediately = true)
+                } else {
+                    // Queue subsequent chunks to synthesize asynchronously without blocking
+                    DebugLogger.log("Queueing chunk ${index + 1}/${chunks.size} for async synthesis: ${chunk.take(50)}...")
+                    viewModelScope.launch(Dispatchers.Default) {
+                        synthesizeAndQueue(cleanText(chunk), playImmediately = false)
+                    }
+                }
             }
             
             builder.clear()
@@ -589,7 +614,10 @@ class ChatViewModel(
         val currentIndex = lineIndex++
         
         viewModelScope.launch {
-            _isSynthesizing.value = true
+            synchronized(this@ChatViewModel) {
+                activeSynthesisCount++
+                _isSynthesizing.value = true
+            }
             
             try {
                 // Add timeout protection
@@ -658,6 +686,12 @@ class ChatViewModel(
                 
                 val (data, sampleRate) = audioData
                 
+                // Check if we should still play (user might have cancelled)
+                if (dropQueuedAudio) {
+                    DebugLogger.log("Audio dropped, synthesis cancelled")
+                    return@launch
+                }
+                
                 // IMMEDIATE PLAYBACK FOR FIRST CHUNK
                 if (playImmediately) {
                     DebugLogger.log("Playing first chunk immediately")
@@ -682,7 +716,13 @@ class ChatViewModel(
                 DebugLogger.log("Error synthesizing sentence: ${e.message}")
                 e.printStackTrace()
             } finally {
-                _isSynthesizing.value = false
+                synchronized(this@ChatViewModel) {
+                    activeSynthesisCount--
+                    if (activeSynthesisCount <= 0) {
+                        activeSynthesisCount = 0
+                        _isSynthesizing.value = false
+                    }
+                }
             }
         }
     }
