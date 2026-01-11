@@ -10,6 +10,9 @@ import kotlin.math.min
  * Thread-safe for concurrent reads and writes without locks.
  * Uses atomic integers for read/write positions.
  * 
+ * Note: The buffer reserves one frame to distinguish between full and empty states.
+ * This means the effective capacity is capacityFrames - 1.
+ * 
  * @param capacityFrames Maximum number of frames the buffer can hold
  * @param frameSize Size of each frame in bytes (e.g., 2 for 16-bit mono)
  */

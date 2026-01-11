@@ -13,7 +13,8 @@ object TextPreprocessor {
         val expandContractions: Boolean = false,
         val handleAcronyms: Boolean = false,
         val normalizeWhitespace: Boolean = true,
-        val normalizePunctuation: Boolean = true
+        val normalizePunctuation: Boolean = true,
+        val applySymbolDictionary: Boolean = true  // Control SymbolDictionary.replaceSymbols() separately
     )
 
     /**
@@ -152,7 +153,9 @@ object TextPreprocessor {
         }
 
         // Apply symbol dictionary replacements
-        normalized = SymbolDictionary.replaceSymbols(normalized)
+        if (config.applySymbolDictionary) {
+            normalized = SymbolDictionary.replaceSymbols(normalized)
+        }
 
         if (config.normalizeWhitespace) {
             // Collapse multiple spaces to single space

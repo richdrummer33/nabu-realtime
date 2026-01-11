@@ -51,13 +51,9 @@ object TTSMetrics {
         totalInferenceTime.addAndGet(durationMs)
         inferenceCount.incrementAndGet()
 
-        // Update worst case
-        var current = worstChunkInference.get()
-        while (durationMs > current) {
-            if (worstChunkInference.compareAndSet(current, durationMs)) {
-                break
-            }
-            current = worstChunkInference.get()
+        // Update worst case using atomic update
+        worstChunkInference.updateAndGet { current ->
+            if (durationMs > current) durationMs else current
         }
     }
 
@@ -86,13 +82,9 @@ object TTSMetrics {
         
         currentBufferFill.set(fillFrames)
         
-        // Update peak
-        var current = peakBufferFill.get()
-        while (fillFrames > current) {
-            if (peakBufferFill.compareAndSet(current, fillFrames)) {
-                break
-            }
-            current = peakBufferFill.get()
+        // Update peak using atomic update
+        peakBufferFill.updateAndGet { current ->
+            if (fillFrames > current) fillFrames else current
         }
     }
 

@@ -417,22 +417,24 @@ class SpeechForegroundService : Service(), SpeechController {
                 // This avoids allocations during playback
                 val numSamples = chunk.audioData.size
                 if (numSamples > maxAudioFrames) {
-                    DebugLogger.log("SpeechService: [PLAYBACK] Warning: chunk too large (${numSamples} frames), truncating to ${maxAudioFrames}")
+                    DebugLogger.log("SpeechService: [PLAYBACK] ERROR: chunk too large (${numSamples} frames > ${maxAudioFrames} max)")
+                    _state.value = SpeechState.Error("Audio chunk too large: ${numSamples} frames")
+                    updateNotification("Error")
+                    return
                 }
                 
-                val actualSamples = min(numSamples, maxAudioFrames)
                 pcmConversionBuffer.clear()
                 val shortBuffer = pcmConversionBuffer.asShortBuffer()
                 
                 // Convert float samples to 16-bit PCM (no boxing, direct buffer access)
-                for (i in 0 until actualSamples) {
+                for (i in 0 until numSamples) {
                     val sample = chunk.audioData[i]
                     val pcmValue = (sample * Short.MAX_VALUE).toInt().toShort()
                     shortBuffer.put(pcmValue)
                 }
                 
                 // Copy to byte array for AudioTrack.write()
-                val bytesToWrite = actualSamples * 2
+                val bytesToWrite = numSamples * 2
                 pcmConversionBuffer.position(0)
                 pcmConversionBuffer.get(pcmConversionArray, 0, bytesToWrite)
                 
@@ -462,7 +464,7 @@ class SpeechForegroundService : Service(), SpeechController {
                 // Wait for all data to be played - use playback head position
                 if (!isUserPaused && currentAudioTrack != null) {
                     val track = currentAudioTrack!!
-                    val expectedDurationMs = (actualSamples * 1000L / chunk.sampleRate)
+                    val expectedDurationMs = (numSamples * 1000L / chunk.sampleRate)
                     val startWaitTime = SystemClock.elapsedRealtime()
                     val maxWaitTime = expectedDurationMs + 2000 // Add 2s buffer
 
