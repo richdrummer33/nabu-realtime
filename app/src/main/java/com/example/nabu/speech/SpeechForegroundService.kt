@@ -81,6 +81,14 @@ class SpeechForegroundService : Service(), SpeechController {
     private var cachedEngine: TTSEngine? = null
     private val engineMutex = Mutex()
     
+    // Pre-allocated buffers for audio conversion (avoid allocations in audio thread)
+    // Maximum expected audio chunk size: 5 seconds at 24kHz = 120,000 samples
+    private val maxAudioFrames = 120_000
+    private val pcmConversionBuffer = ByteBuffer.allocateDirect(maxAudioFrames * 2).apply {
+        order(ByteOrder.LITTLE_ENDIAN)
+    }
+    private val pcmConversionArray = ByteArray(maxAudioFrames * 2)
+    
     inner class LocalBinder : Binder() {
         fun getService(): SpeechForegroundService = this@SpeechForegroundService
     }
@@ -405,29 +413,45 @@ class SpeechForegroundService : Service(), SpeechController {
                     AudioTrack.MODE_STREAM
                 )
                 
-                val byteBuffer = ByteBuffer.allocate(chunk.audioData.size * 2)
-                byteBuffer.order(ByteOrder.LITTLE_ENDIAN)
-                val shortBuffer = byteBuffer.asShortBuffer()
+                // Convert Float samples to PCM 16-bit using pre-allocated buffer
+                // This avoids allocations during playback
+                val numSamples = chunk.audioData.size
+                if (numSamples > maxAudioFrames) {
+                    // Technical details in debug log
+                    DebugLogger.log("SpeechService: [PLAYBACK] ERROR: chunk too large (${numSamples} frames > ${maxAudioFrames} max)")
+                    // User-friendly error message
+                    _state.value = SpeechState.Error("Audio chunk is too large for processing")
+                    updateNotification("Error")
+                    return
+                }
                 
-                for (sample in chunk.audioData) {
+                pcmConversionBuffer.clear()
+                val shortBuffer = pcmConversionBuffer.asShortBuffer()
+                
+                // Convert float samples to 16-bit PCM (no boxing, direct buffer access)
+                for (i in 0 until numSamples) {
+                    val sample = chunk.audioData[i]
                     val pcmValue = (sample * Short.MAX_VALUE).toInt().toShort()
                     shortBuffer.put(pcmValue)
                 }
                 
+                // Copy to byte array for AudioTrack.write()
+                val bytesToWrite = numSamples * 2
+                pcmConversionBuffer.position(0)
+                pcmConversionBuffer.get(pcmConversionArray, 0, bytesToWrite)
+                
                 currentAudioTrack?.play()
 
-                val pcmBytes = byteBuffer.array()
-                val totalFrames = chunk.audioData.size
                 val chunkSize = 4096
                 var pos = 0
 
                 val writeStart = SystemClock.elapsedRealtime()
-                DebugLogger.log("SpeechService: [PLAYBACK] Writing ${pcmBytes.size} bytes to AudioTrack...")
+                DebugLogger.log("SpeechService: [PLAYBACK] Writing ${bytesToWrite} bytes to AudioTrack...")
 
-                while (pos < pcmBytes.size && !isUserPaused) {
-                    val remaining = pcmBytes.size - pos
+                while (pos < bytesToWrite && !isUserPaused) {
+                    val remaining = bytesToWrite - pos
                     val toWrite = min(chunkSize, remaining)
-                    val written = currentAudioTrack?.write(pcmBytes, pos, toWrite) ?: 0
+                    val written = currentAudioTrack?.write(pcmConversionArray, pos, toWrite) ?: 0
                     if (written > 0) {
                         pos += written
                     } else {
@@ -437,12 +461,12 @@ class SpeechForegroundService : Service(), SpeechController {
                 }
 
                 val writeTime = SystemClock.elapsedRealtime() - writeStart
-                DebugLogger.log("SpeechService: [PLAYBACK] Wrote $pos/${pcmBytes.size} bytes in ${writeTime}ms, now waiting for playback...")
+                DebugLogger.log("SpeechService: [PLAYBACK] Wrote $pos/${bytesToWrite} bytes in ${writeTime}ms, now waiting for playback...")
 
                 // Wait for all data to be played - use playback head position
                 if (!isUserPaused && currentAudioTrack != null) {
                     val track = currentAudioTrack!!
-                    val expectedDurationMs = (chunk.audioData.size * 1000L / chunk.sampleRate)
+                    val expectedDurationMs = (numSamples * 1000L / chunk.sampleRate)
                     val startWaitTime = SystemClock.elapsedRealtime()
                     val maxWaitTime = expectedDurationMs + 2000 // Add 2s buffer
 
@@ -465,9 +489,8 @@ class SpeechForegroundService : Service(), SpeechController {
 
                 DebugLogger.log("SpeechService: [PLAYBACK] AudioTrack released, chunk ${chunk.index}/${chunk.totalChunks} complete")
 
-                // NOTE: Audio data is held in memory during playback (byteBuffer).
-                // Writing happens in 4KB chunks which is fast (~1-5ms total).
-                // AudioTrack handles internal buffering, so this doesn't block synthesis.
+                // NOTE: We now use pre-allocated buffers, avoiding allocation during playback.
+                // Float→Short conversion happens once per chunk using direct buffer access.
                 
                 // If this was the last chunk, go back to idle
                 if (chunk.index == chunk.totalChunks && !isUserPaused) {

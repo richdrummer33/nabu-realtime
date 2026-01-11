@@ -2,7 +2,7 @@ name: Android CI - TTS Refactor
 
 on:
   push:
-    branches: [ "claude/refactor-tts-service-hob5N", "latest", "main" ]
+    branches: [ "claude/refactor-tts-service-hob5N", "copilot/improve-tts-annunciation", "latest", "main" ]
   pull_request:
     branches: [ "latest", "main" ]
 

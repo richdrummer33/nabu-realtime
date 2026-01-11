@@ -57,6 +57,18 @@ We have taken the original demo and expanded it with several key features:
 
 *   **📂 Project-Based Workflow:** Save your book reading sessions as "projects," which remember your document, voice mixer settings, speed, and reading position for easy access later.
 
+*   **🎯 Advanced Text Preprocessing:** Improved TTS annunciation with optional text preprocessing features:
+    *   **Contraction Expansion:** Automatically expand contractions like "I'm" → "I am", "don't" → "do not" for clearer pronunciation
+    *   **Acronym Handling:** Space out all-caps acronyms (e.g., "NASA" → "N A S A") for better clarity
+    *   **Pronunciation Overrides:** Customize pronunciations via `pronunciations.json` for app-specific terms and proper nouns
+    *   All preprocessing features can be toggled via settings for backwards compatibility
+
+*   **⚡ Performance Optimizations:** Enhanced responsiveness and audio quality:
+    *   **Warmup Inference:** Reduced first-synthesis latency by pre-loading the model on app startup
+    *   **Zero-Allocation Audio Path:** Pre-allocated buffers eliminate memory allocations during playback
+    *   **Efficient PCM Conversion:** Single-pass float-to-short conversion with direct buffer access
+    *   **TTS Metrics:** Optional debug metrics for tracking inference timing and performance
+
 ## How to Build
 
 The project is configured for a standard Android Studio build.
@@ -69,6 +81,48 @@ The project is configured for a standard Android Studio build.
 ## Prebuilt APK files
 
 Pre-compiled `.apk` files are available in the [Releases](https://github.com/mewmix/nabu/releases/) section of this repository.
+
+## Configuration & Customization
+
+### Text Preprocessing
+
+Nabu includes advanced text preprocessing to improve TTS pronunciation clarity. All features can be enabled/disabled via settings:
+
+**Contraction Expansion:**
+- Automatically expands common English contractions for clearer speech
+- Examples: "I'm" → "I am", "don't" → "do not", "won't" → "will not"
+- Toggle via Settings → Expand Contractions
+
+**Acronym Handling:**
+- Spaces out all-caps words (2-5 letters) for better pronunciation
+- Examples: "NASA" → "N A S A", "API" → "A P I"
+- Toggle via Settings → Handle Acronyms
+
+**Pronunciation Overrides:**
+- Customize pronunciations for specific words via `app/src/main/assets/pronunciations.json`
+- Format: `{"word": "pronunciation"}`
+- Example entries included for technical terms like "nabu", "kokoro", "ONNX"
+- To add your own:
+  1. Edit `pronunciations.json` in the assets folder
+  2. Add entries like `"myword": "my word pronunciation"`
+  3. Rebuild the app
+- Toggle via Settings → Use Pronunciation Overrides
+
+### Performance Tuning
+
+**TTS Metrics (Debug Mode):**
+- Enable via Settings → Debug Mode → TTS Metrics
+- Tracks inference timing, buffer fill levels, and audio underruns
+- Useful for diagnosing performance issues on different devices
+
+**Warmup Inference:**
+- Automatically enabled on app startup
+- Reduces first-synthesis latency by pre-loading the TTS model
+- No configuration needed
+
+### Default Behavior
+
+All new features default to **OFF** to maintain backwards compatibility with existing workflows. Enable features selectively based on your preferences.
 
 ## Credits & Technologies
 

@@ -56,4 +56,42 @@ object SettingsManager {
 
     fun getTtsEngine(context: Context, default: String = "kokoro"): String =
         DatabaseManager.getSetting(context, "tts_engine") ?: default
+
+    // Text preprocessing feature flags
+    fun setExpandContractions(context: Context, enabled: Boolean) {
+        DatabaseManager.setSetting(context, "expand_contractions", if (enabled) "1" else "0")
+    }
+
+    fun isExpandContractions(context: Context): Boolean =
+        (DatabaseManager.getSetting(context, "expand_contractions") ?: "0") == "1"
+
+    fun setHandleAcronyms(context: Context, enabled: Boolean) {
+        DatabaseManager.setSetting(context, "handle_acronyms", if (enabled) "1" else "0")
+    }
+
+    fun isHandleAcronyms(context: Context): Boolean =
+        (DatabaseManager.getSetting(context, "handle_acronyms") ?: "0") == "1"
+
+    fun setUsePronunciationOverrides(context: Context, enabled: Boolean) {
+        DatabaseManager.setSetting(context, "use_pronunciation_overrides", if (enabled) "1" else "0")
+    }
+
+    fun isUsePronunciationOverrides(context: Context): Boolean =
+        (DatabaseManager.getSetting(context, "use_pronunciation_overrides") ?: "0") == "1"
+
+    // Streaming audio feature flags
+    fun setStreamingAudioEnabled(context: Context, enabled: Boolean) {
+        DatabaseManager.setSetting(context, "streaming_audio_enabled", if (enabled) "1" else "0")
+    }
+
+    fun isStreamingAudioEnabled(context: Context): Boolean =
+        (DatabaseManager.getSetting(context, "streaming_audio_enabled") ?: "0") == "1"
+
+    // TTS metrics debugging
+    fun setTtsMetricsEnabled(context: Context, enabled: Boolean) {
+        DatabaseManager.setSetting(context, "tts_metrics_enabled", if (enabled) "1" else "0")
+    }
+
+    fun isTtsMetricsEnabled(context: Context): Boolean =
+        (DatabaseManager.getSetting(context, "tts_metrics_enabled") ?: "0") == "1"
 }
