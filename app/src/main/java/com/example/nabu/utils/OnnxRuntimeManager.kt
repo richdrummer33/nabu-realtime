@@ -55,6 +55,9 @@ object OnnxRuntimeManager {
                 DebugLogger.log(
                     "Kokoro runtime ready ep=${newBundle.ep} graph=${newBundle.graphId} sampleRate=${manifest.sampleRate}"
                 )
+                
+                // Perform warmup inference to reduce first-synthesis latency
+                warmup()
             }.onFailure { error ->
                 Log.e(TAG, "Unable to load Kokoro session", error)
                 DebugLogger.log("Kokoro runtime failed: ${error.message}")
@@ -62,6 +65,33 @@ object OnnxRuntimeManager {
 
             loadResult
         }
+
+    /**
+     * Perform a warmup inference with minimal dummy input to initialize the session.
+     * This reduces latency for the first real synthesis by pre-loading the model.
+     */
+    private suspend fun warmup() {
+        try {
+            val startTime = System.currentTimeMillis()
+            DebugLogger.log("OnnxRuntimeManager: Starting warmup inference...")
+            
+            val currentEngine = engine
+            if (currentEngine != null) {
+                // Create minimal valid input for warmup
+                val dummyTokens = longArrayOf(0L, 1L, 0L)  // Minimal valid token sequence
+                val dummyStyle = Array(1) { FloatArray(256) { 0f } }  // Zero-filled style vector
+                
+                // Run warmup synthesis and discard output
+                currentEngine.synth(dummyTokens, dummyStyle, 1.0f)
+                
+                val elapsedMs = System.currentTimeMillis() - startTime
+                DebugLogger.log("OnnxRuntimeManager: Warmup completed in ${elapsedMs}ms")
+            }
+        } catch (e: Exception) {
+            // Warmup failure is not critical - log and continue
+            DebugLogger.log("OnnxRuntimeManager: Warmup failed (non-critical): ${e.message}")
+        }
+    }
 
     fun getEngine(): KokoroEngine =
         requireNotNull(engine) { "Kokoro engine not initialized" }
