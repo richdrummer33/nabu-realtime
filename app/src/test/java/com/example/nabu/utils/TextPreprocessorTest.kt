@@ -154,7 +154,7 @@ class TextPreprocessorTest {
         )
         
         // Test quote normalization
-        val quotes = TextPreprocessor.preprocess("'hello' "world"", config)
+        val quotes = TextPreprocessor.preprocess("'hello' \"world\"", config)
         assertTrue(quotes.contains("'hello'"))
         assertTrue(quotes.contains("\"world\""))
         
