@@ -82,8 +82,9 @@ class SpeechForegroundService : Service(), SpeechController {
     private val engineMutex = Mutex()
     
     // Pre-allocated buffers for audio conversion (avoid allocations in audio thread)
-    // Maximum expected audio chunk size: 5 seconds at 24kHz = 120,000 samples
-    private val maxAudioFrames = 120_000
+    // Maximum expected audio chunk size: 15 seconds at 24kHz = 360,000 samples
+    // (Increased from 120k to handle longer text chunks that can generate 9+ seconds of audio)
+    private val maxAudioFrames = 360_000
     private val pcmConversionBuffer = ByteBuffer.allocateDirect(maxAudioFrames * 2).apply {
         order(ByteOrder.LITTLE_ENDIAN)
     }
