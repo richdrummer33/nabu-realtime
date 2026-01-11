@@ -123,7 +123,7 @@ object TextPreprocessor {
             // Normalize various quote styles to standard quotes
             normalized = normalized
                 .replace("['']".toRegex(), "'")
-                .replace("[""«»]".toRegex(), "\"")
+                .replace("""[""«»]""".toRegex(), "\"")
                 .replace("[、。！，：；？]".toRegex()) { match ->
                     when (match.value) {
                         "、" -> ","
