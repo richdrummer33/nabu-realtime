@@ -417,8 +417,10 @@ class SpeechForegroundService : Service(), SpeechController {
                 // This avoids allocations during playback
                 val numSamples = chunk.audioData.size
                 if (numSamples > maxAudioFrames) {
+                    // Technical details in debug log
                     DebugLogger.log("SpeechService: [PLAYBACK] ERROR: chunk too large (${numSamples} frames > ${maxAudioFrames} max)")
-                    _state.value = SpeechState.Error("Audio chunk too large: ${numSamples} frames")
+                    // User-friendly error message
+                    _state.value = SpeechState.Error("Audio chunk is too large for processing")
                     updateNotification("Error")
                     return
                 }

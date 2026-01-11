@@ -139,11 +139,11 @@ object TextPreprocessor {
 
             // Normalize common abbreviations
             normalized = normalized
-                .replace(Regex("\\bD[Rr]\\.(?= [A-Z])"), "Doctor")
-                .replace(Regex("\\b(?:Mr\\.|MR\\.(?= [A-Z]))"), "Mister")
-                .replace(Regex("\\b(?:Ms\\.|MS\\.(?= [A-Z]))"), "Miss")
-                .replace(Regex("\\b(?:Mrs\\.|MRS\\.(?= [A-Z]))"), "Mrs")
-                .replace(Regex("\\betc\\.(?! [A-Z])"), "etc")
+                .replace(Regex("\\bD[Rr]\\.(?=\\s|$)"), "Doctor")
+                .replace(Regex("\\b(?:Mr\\.|MR\\.)(?=\\s|$)"), "Mister")
+                .replace(Regex("\\b(?:Ms\\.|MS\\.)(?=\\s|$)"), "Miss")
+                .replace(Regex("\\b(?:Mrs\\.|MRS\\.)(?=\\s|$)"), "Mrs")
+                .replace(Regex("\\betc\\.(?!\\s*[A-Z])"), "etc")
 
             // Remove commas in numbers (e.g., 1,000 -> 1000)
             normalized = normalized.replace(Regex("(?<=\\d),(?=\\d)"), "")

@@ -90,13 +90,18 @@ object TTSMetrics {
 
     /**
      * Take a snapshot of current metrics.
+     * Captures consistent state across concurrent updates.
      */
     fun snapshot(): MetricsSnapshot {
+        // Capture values in local variables for consistency
+        val count = inferenceCount.get()
+        val totalTime = totalInferenceTime.get()
+        
         return MetricsSnapshot(
             timeToFirstAudioMs = timeToFirstAudio.get(),
             lastChunkInferenceMs = lastChunkInference.get(),
-            avgChunkInferenceMs = if (inferenceCount.get() > 0) {
-                totalInferenceTime.get().toDouble() / inferenceCount.get()
+            avgChunkInferenceMs = if (count > 0) {
+                totalTime.toDouble() / count
             } else {
                 0.0
             },
@@ -105,7 +110,7 @@ object TTSMetrics {
             peakBufferFillFrames = peakBufferFill.get(),
             underrunCount = underrunCount.get(),
             totalUnderrunMs = totalUnderrunMs.get(),
-            inferenceCount = inferenceCount.get()
+            inferenceCount = count
         )
     }
 
