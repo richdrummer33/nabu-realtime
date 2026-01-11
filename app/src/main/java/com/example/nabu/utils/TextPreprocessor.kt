@@ -181,11 +181,20 @@ object TextPreprocessor {
             
             result = pattern.replace(result) { matchResult ->
                 val matched = matchResult.value
-                // Preserve case of first character
-                if (matched.isNotEmpty() && matched[0].isUpperCase()) {
-                    expansion.replaceFirstChar { it.uppercase() }
-                } else {
-                    expansion
+                // Preserve case: all-caps -> capitalize all words, first-cap -> capitalize first char
+                when {
+                    matched.isEmpty() -> expansion
+                    matched.all { it.isUpperCase() || !it.isLetter() } -> {
+                        // All caps input: capitalize each word in expansion
+                        expansion.split(" ").joinToString(" ") { word ->
+                            word.replaceFirstChar { it.uppercase() }
+                        }
+                    }
+                    matched[0].isUpperCase() -> {
+                        // First character uppercase: capitalize first character of expansion
+                        expansion.replaceFirstChar { it.uppercase() }
+                    }
+                    else -> expansion
                 }
             }
         }
