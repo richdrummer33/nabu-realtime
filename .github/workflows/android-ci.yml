@@ -21,7 +21,52 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+
+    - name: Cache Gradle wrapper
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-wrapper-
+
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/dependency-check-data
+        key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-deps-
+
+    - name: Cache Gradle build cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/build-cache
+        key: ${{ runner.os }}-gradle-build-cache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-build-cache-
+
+    - name: Cache Android SDK
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.android/sdk
+        key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/*.gradle*', 'gradle.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-android-sdk-
+
+    - name: Cache Kotlin compiler
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.konan
+        key: ${{ runner.os }}-konan-${{ hashFiles('**/*.gradle*') }}
+        restore-keys: |
+          ${{ runner.os }}-konan-
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
