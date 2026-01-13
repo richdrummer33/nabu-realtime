@@ -125,6 +125,47 @@ fun SettingsScreen() {
 
             HorizontalDivider()
 
+            Text("TTS Chunking Settings", style = MaterialTheme.typography.titleMedium)
+            
+            var maxChunkWords by remember { mutableStateOf(SettingsManager.getMaxChunkWords(context)) }
+            var minChunkWords by remember { mutableStateOf(SettingsManager.getMinChunkWords(context)) }
+            
+            Text(
+                text = "Max Words Per Chunk: $maxChunkWords",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            BrutalSlider(
+                value = maxChunkWords.toFloat(),
+                onValueChange = { 
+                    maxChunkWords = it.toInt()
+                    SettingsManager.setMaxChunkWords(context, maxChunkWords)
+                },
+                range = 10f..100f
+            )
+            
+            Text(
+                text = "Min Words Per Chunk: $minChunkWords",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            BrutalSlider(
+                value = minChunkWords.toFloat(),
+                onValueChange = { 
+                    minChunkWords = it.toInt()
+                    SettingsManager.setMinChunkWords(context, minChunkWords)
+                },
+                range = 1f..20f
+            )
+            
+            Text(
+                text = "Lower values = more responsive but less natural pacing. Higher values = smoother speech but slower to start.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            HorizontalDivider()
+
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = it }
